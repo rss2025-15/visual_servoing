@@ -33,6 +33,8 @@ class ParkingController(Node):
         self.wheelbase = .46
 
         self.speed = 1.
+
+        self.no_cone()
     
 
         self.get_logger().info("Parking Controller Initialized")
@@ -51,7 +53,6 @@ class ParkingController(Node):
             steer = np.arctan(lookahead*self.wheelbase/(2*self.relative_y))
             self.speed= 1.
 
-
         else:
             steer = 0.
             self.speed = 0.
@@ -67,6 +68,16 @@ class ParkingController(Node):
 
         self.drive_pub.publish(drive_cmd)
         self.error_publisher()
+    
+    def no_cone(self):
+        drive_cmd = AckermannDriveStamped()
+        drive_cmd.speed = 0.5
+        drive_cmd.steering_angle = 2.0
+        drive_cmd.drive.steering_angle_velocity = 0.0
+        drive_cmd.drive.acceleration = 0.0
+        drive_cmd.drive.jerk = 0.0
+
+        self.drive_pub.publish(drive_cmd)
 
     def error_publisher(self):
         """
