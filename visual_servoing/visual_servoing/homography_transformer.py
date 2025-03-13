@@ -20,22 +20,20 @@ from vs_msgs.msg import ConeLocation, ConeLocationPixel
 # see README.md for coordinate frame description
 
 ######################################################
-## DUMMY POINTS -- ENTER YOUR MEASUREMENTS HERE
-PTS_IMAGE_PLANE = [[-1, -1],
-                   [-1, -1],
-                   [-1, -1],
-                   [-1, -1]] # dummy points
+PTS_IMAGE_PLANE = [[289, 263],
+                   [71, 299],
+                   [492, 229],
+                   [562, 237]]
 ######################################################
 
 # PTS_GROUND_PLANE units are in inches
 # car looks along positive x axis with positive y axis to left
 
 ######################################################
-## DUMMY POINTS -- ENTER YOUR MEASUREMENTS HERE
-PTS_GROUND_PLANE = [[-1, -1],
-                    [-1, -1],
-                    [-1, -1],
-                    [-1, -1]] # dummy points
+PTS_GROUND_PLANE = [[21.65, 4.53],
+                    [16.54, 15.16],
+                    [30.12, -13.39],
+                    [26.77, -17.32]]
 ######################################################
 
 METERS_PER_INCH = 0.0254
@@ -63,6 +61,7 @@ class HomographyTransformer(Node):
         np_pts_image = np.float32(np_pts_image[:, np.newaxis, :])
 
         self.h, err = cv2.findHomography(np_pts_image, np_pts_ground)
+        self.get_logger().info(f"Computed Homography Matrix:\n{self.h}")
 
         self.get_logger().info("Homography Transformer Initialized")
 
@@ -80,6 +79,7 @@ class HomographyTransformer(Node):
         relative_xy_msg.y_pos = y
 
         self.cone_pub.publish(relative_xy_msg)
+        self.draw_marker(x, y, "map")
 
 
     def transformUvToXy(self, u, v):
@@ -101,6 +101,9 @@ class HomographyTransformer(Node):
         homogeneous_xy = xy * scaling_factor
         x = homogeneous_xy[0, 0]
         y = homogeneous_xy[1, 0]
+
+        self.get_logger().info(f"Pixel ({u},{v}) -> World ({x:.2f}, {y:.2f})")
+        
         return x, y
 
     def draw_marker(self, cone_x, cone_y, message_frame):
