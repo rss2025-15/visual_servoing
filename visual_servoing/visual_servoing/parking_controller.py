@@ -5,9 +5,11 @@ from rclpy.node import Node
 import numpy as np
 from rclpy.time import Time
 import time
+import math
 
 from vs_msgs.msg import ConeLocation, ParkingError
-from ackermann_msgs.msg import AckermannDriveStamped
+from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
+from std_msgs.msg import Header
 
 class ParkingController(Node):
     """
@@ -31,53 +33,52 @@ class ParkingController(Node):
         self.relative_x = 0
         self.relative_y = 0
         self.wheelbase = .46
+        self.park_thres = 0.2
+        self.max_steer = 0.2
+        
+        self.min_turn_radius = self.wheelbase/math.tan(self.max_steer)
 
         self.speed = 1.
 
         self.no_cone()
-    
 
         self.get_logger().info("Parking Controller Initialized")
 
     def relative_cone_callback(self, msg):
         self.relative_x = msg.x_pos
         self.relative_y = msg.y_pos
-        drive_cmd = AckermannDriveStamped()
-
         lookahead = np.linalg.norm([self.relative_x, self.relative_y])
-        gain = lookahead *0.1
+        # gain = lookahead *0.1
         self.get_logger().info(f"lookahead {lookahead}")
 
-        if lookahead > self.parking_distance:
+        # plan is to follow a circular trajectory to go to the cone (which will be smooth)
+        # if the computed radius is smaller than the minimum turning radius of the robot we should also go backwards
+        # (at least to the point where the turning radius is the minimum turning radius (tangency of two circles))
+        # and then it should go forwards
 
-            steer = np.arctan(lookahead*self.wheelbase/(2*self.relative_y))
-            self.speed= 1.
+        turn_radius = lookahead / (2*math.sin(math.atan2(self.relative_y,self.relative_x)))
 
+        if lookahead > self.parking_distance+self.park_thres and turn_radius >= self.min_turn_radius:
+            # forward pure pursuit (intersection with straight line towards cone? maybe change to circle?)
+            # self.drive_cmd(np.arctan(lookahead*self.wheelbase/(2*self.relative_y))*gain)
+
+            self.drive_cmd(math.atan(self.wheelbase/turn_radius))
+                    
+        elif lookahead < self.parking_distance-self.park_thres or turn_radius < self.min_turn_radius:
+            # go back and turn
+            if self.relative_y > 0:
+                # cone is to the left, go back right
+                self.drive_cmd(-self.max_steer, -1.0)
+            else:
+                # cone right, go back left
+                self.drive_cmd(self.max_steer, -1.0)
         else:
-            steer = 0.
-            self.speed = 0.
-            
-        drive_cmd.drive.steering_angle = steer*gain
-        drive_cmd.drive.steering_angle_velocity = 0.0
-
-        drive_cmd.drive.speed = self.speed
-        drive_cmd.drive.acceleration = 0.0
-        drive_cmd.drive.jerk = 0.0
-
-        #################################
-
-        self.drive_pub.publish(drive_cmd)
+            self.stop_cmd()
+        
         self.error_publisher()
     
     def no_cone(self):
-        drive_cmd = AckermannDriveStamped()
-        drive_cmd.speed = 0.5
-        drive_cmd.steering_angle = 2.0
-        drive_cmd.drive.steering_angle_velocity = 0.0
-        drive_cmd.drive.acceleration = 0.0
-        drive_cmd.drive.jerk = 0.0
-
-        self.drive_pub.publish(drive_cmd)
+        self.drive_cmd(2.0, 0.5)
 
     def error_publisher(self):
         """
@@ -86,18 +87,31 @@ class ParkingController(Node):
         """
         error_msg = ParkingError()
 
-        #################################
-
-        # YOUR CODE HERE
-        # Populate error_msg with relative_x, relative_y, sqrt(x^2+y^2)
         error_msg.x_error = self.relative_x
         error_msg.y_error = self.relative_y
         error_msg.distance_error = np.sqrt(self.relative_x**2 + self.relative_y**2)
-
-
-        #################################
         
         self.error_pub.publish(error_msg)
+
+    def drive_cmd(self, steer, speed = 1.0):
+        drive_cmd_drive = AckermannDriveStamped()
+        drive_cmd_drive.drive.speed = speed
+        drive_cmd_drive.drive.steering_angle = steer
+        drive_cmd_drive.drive.steering_angle_velocity = 0.0
+        drive_cmd_drive.drive.acceleration = 0.0
+        drive_cmd_drive.drive.jerk = 0.0
+        drive_cmd_drive.header.stamp = self.get_clock().now().to_msg()
+        self.drive_pub.publish(drive_cmd_drive)
+    
+    def stop_cmd(self):
+        stop_cmd_drive = AckermannDriveStamped()
+        stop_cmd_drive.drive.speed = 0.0
+        stop_cmd_drive.drive.steering_angle = 0.0
+        stop_cmd_drive.drive.steering_angle_velocity = 0.0
+        stop_cmd_drive.drive.acceleration = 0.0
+        stop_cmd_drive.drive.jerk = 0.0
+        stop_cmd_drive.header.stamp = self.get_clock().now().to_msg()
+        self.drive_pub.publish(stop_cmd_drive)
 
 def main(args=None):
     rclpy.init(args=args)
