@@ -3,6 +3,8 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
+from rclpy.time import Time
+import time
 
 from vs_msgs.msg import ConeLocation, ParkingError
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -28,6 +30,12 @@ class ParkingController(Node):
         self.parking_distance = .75 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
+        self.wheelbase = .46
+
+        self.speed = 1.
+
+        self.no_cone()
+    
 
         self.get_logger().info("Parking Controller Initialized")
 
@@ -36,15 +44,40 @@ class ParkingController(Node):
         self.relative_y = msg.y_pos
         drive_cmd = AckermannDriveStamped()
 
-        #################################
+        lookahead = np.linalg.norm([self.relative_x, self.relative_y])
+        gain = lookahead *0.1
+        self.get_logger().info(f"lookahead {lookahead}")
 
-        # YOUR CODE HERE
-        # Use relative position and your control law to set drive_cmd
+        if lookahead > self.parking_distance:
+
+            steer = np.arctan(lookahead*self.wheelbase/(2*self.relative_y))
+            self.speed= 1.
+
+        else:
+            steer = 0.
+            self.speed = 0.
+            
+        drive_cmd.drive.steering_angle = steer*gain
+        drive_cmd.drive.steering_angle_velocity = 0.0
+
+        drive_cmd.drive.speed = self.speed
+        drive_cmd.drive.acceleration = 0.0
+        drive_cmd.drive.jerk = 0.0
 
         #################################
 
         self.drive_pub.publish(drive_cmd)
         self.error_publisher()
+    
+    def no_cone(self):
+        drive_cmd = AckermannDriveStamped()
+        drive_cmd.speed = 0.5
+        drive_cmd.steering_angle = 2.0
+        drive_cmd.drive.steering_angle_velocity = 0.0
+        drive_cmd.drive.acceleration = 0.0
+        drive_cmd.drive.jerk = 0.0
+
+        self.drive_pub.publish(drive_cmd)
 
     def error_publisher(self):
         """
@@ -57,6 +90,10 @@ class ParkingController(Node):
 
         # YOUR CODE HERE
         # Populate error_msg with relative_x, relative_y, sqrt(x^2+y^2)
+        error_msg.x_error = self.relative_x
+        error_msg.y_error = self.relative_y
+        error_msg.distance_error = np.sqrt(self.relative_x**2 + self.relative_y**2)
+
 
         #################################
         

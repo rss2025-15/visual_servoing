@@ -49,8 +49,16 @@ class ConeDetector(Node):
         #################################
 
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
-
+        pixel_data = image_msg.data  # This is already a 1D byte arra
+        ((x1, y1), (x2, y2)) = cd_color_segmentation(pixel_data)
+        x_pixel = (x1 + x2)//2
+        y_pixel = (y1 + y2)//2
+        cone_pixel = ConeLocationPixel()
+        cone_pixel.x = x_pixel
+        cone_pixel.y = y_pixel
+        self.cone_pub.publish(cone_pixel)
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
+
         self.debug_pub.publish(debug_msg)
 
 def main(args=None):
