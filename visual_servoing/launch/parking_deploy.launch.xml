@@ -6,7 +6,11 @@
     <param from="/root/racecar_ws/src/safety_controller/safety_controller/params.yaml"/>
   </node>
 
-  <node pkg="visual_servoing" name="parking_controller" exec="parking_controller" output="screen">
+  <!-- <node pkg="visual_servoing" name="parking_controller" exec="parking_controller" output="screen">
+  	<param name="drive_topic" value="/vesc/low_level/input/navigation" />
+  </node> -->
+
+  <node pkg="visual_servoing" name="line_follower" exec="line_follower" output="screen">
   	<param name="drive_topic" value="/vesc/low_level/input/navigation" />
   </node>
 

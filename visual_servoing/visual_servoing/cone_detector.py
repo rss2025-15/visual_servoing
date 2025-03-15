@@ -12,7 +12,7 @@ from geometry_msgs.msg import Point #geometry_msgs not in CMake file
 from vs_msgs.msg import ConeLocationPixel
 
 # import your color segmentation algorithm; call this function in ros_image_callback!
-from computer_vision.color_segmentation import cd_color_segmentation, cd_color_segmentation_line
+from computer_vision.color_segmentation import *
 # from computer_vision.sift_template import cd_sift_ransac
 
 
@@ -53,7 +53,7 @@ class ConeDetector(Node):
 
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
         # if self.LineFollower:
-        ((x1, y1), (x2, y2)) = cd_color_segmentation_line(image)
+        ((x1, y1), (x2, y2)) = cd_color_segmentation(image, linefollower=self.LineFollower)
         # else:
         #   ((x1, y1), (x2, y2)) = cd_color_segmentation(image)
         # ((x1, y1), (x2,y2)) = cd_sift_ransac(image, self.template)
@@ -69,10 +69,10 @@ class ConeDetector(Node):
 
         # 1) Convert the main image to HSV
         hsv_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        lower_hsv = np.array([5, 200, 100], dtype=np.uint8)
-        upper_hsv = np.array([15, 255, 255], dtype=np.uint8)
+        lower_hsv = np.array([2, 100, 100], dtype=np.uint8)
+        upper_hsv = np.array([200, 255, 255], dtype=np.uint8)
         mask = cv2.inRange(hsv_img, lower_hsv, upper_hsv)
-        #add box around orig image
+        # add box around orig image
         cv2.rectangle(image, (x1,y1), (x2, y2), (0,255,0), 2)
         cv2.putText(image, "FPS: {:.2f}".format(fps), (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
         combined_view = np.hstack((image, cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)))

@@ -22,7 +22,7 @@ def image_print(img):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-def cd_color_segmentation(img, template=None):
+def cd_color_segmentation(img, template=None, linefollower=False):
     """
     Implement color segmentation to detect a cone (or any object).
 
@@ -37,7 +37,12 @@ def cd_color_segmentation(img, template=None):
               (x1, y1) = top-left corner, (x2, y2) = bottom-right corner
     """
     # 1) Convert the main image to HSV
-    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    if linefollower:
+        hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower_bound = 120
+        hsv_img = hsv_img[lower_bound:lower_bound+120, :]
+    else:
+        hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     # -------------------------------------------------
     # 2) If a template path is given, derive HSV filter
@@ -92,20 +97,22 @@ def cd_color_segmentation(img, template=None):
     else:
         # If no template is supplied, just use a fixed “orange-ish” example range
         # (Adjust these to your object’s color as needed)
-        lower_hsv = np.array([5, 200, 100], dtype=np.uint8)
-        upper_hsv = np.array([15, 255, 255], dtype=np.uint8)
+        lower_hsv = np.array([2, 100, 100], dtype=np.uint8)
+        upper_hsv = np.array([20, 255, 255], dtype=np.uint8)
 
     # -------------------------------------------------
     # 3) Threshold the main image (hsv_img) using our HSV bounds
     # -------------------------------------------------
     mask = cv2.inRange(hsv_img, lower_hsv, upper_hsv)
-
+    # combined_view = np.hstack((img, cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)))
+    # image_print(combined_view)
     # -------------------------------------------------
     # 4) (OPTIONAL) Morphological operations to reduce noise
     # -------------------------------------------------
     kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.erode(mask, kernel, iterations=0)
-    mask = cv2.dilate(mask, kernel, iterations=3)
+    # mask = cv2.erode(mask, kernel, iterations=0)
+    # mask = cv2.dilate(mask, kernel, iterations=2)
+
 
     # -------------------------------------------------
     # 5) Find contours on the mask; pick the largest one
@@ -124,7 +131,10 @@ def cd_color_segmentation(img, template=None):
 
     if best_contour is not None:
         x, y, w, h = cv2.boundingRect(best_contour)
-        bounding_box = ((x, y), (x + w, y + h))
+        if linefollower:
+            bounding_box = ((x, y + lower_bound), (x + w, y + h + lower_bound))
+        else:
+            bounding_box = ((x, y), (x + w, y + h))
     return bounding_box
 
 def cd_color_segmentation_line(img, template=None):
@@ -144,7 +154,7 @@ def cd_color_segmentation_line(img, template=None):
     # 1) Convert the main image to HSV
     hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     lower_bound = 120
-    hsv_img = hsv_img[lower_bound:240, :]
+    hsv_img = hsv_img[lower_bound:lower_bound+120, :]
 
     # -------------------------------------------------
     # 2) If a template path is given, derive HSV filter
