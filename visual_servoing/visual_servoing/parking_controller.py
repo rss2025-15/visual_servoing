@@ -29,12 +29,14 @@ class ParkingController(Node):
         self.create_subscription(ConeLocation, "/relative_cone", 
             self.relative_cone_callback, 1)
 
-        self.parking_distance = .75 # meters; try playing with this number!
+        self.parking_distance = .0 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
         self.wheelbase = .46
-        self.park_thres = 0.2
-        self.max_steer = 0.2
+        self.park_thres = 0.1
+        self.max_steer = 0.78
+        self.close_speed = 0.7
+        self.exp_speed_coeff = 5.0
         
         self.min_turn_radius = self.wheelbase/math.tan(self.max_steer)
 
@@ -48,7 +50,7 @@ class ParkingController(Node):
         self.relative_x = msg.x_pos
         self.relative_y = msg.y_pos
         lookahead = np.linalg.norm([self.relative_x, self.relative_y])
-        # gain = lookahead *0.1
+        # gain = 1.
         self.get_logger().info(f"lookahead {lookahead}")
 
         # plan is to follow a circular trajectory to go to the cone (which will be smooth)
@@ -58,21 +60,31 @@ class ParkingController(Node):
 
         turn_radius = lookahead / (2*math.sin(math.atan2(self.relative_y,self.relative_x)))
 
-        if lookahead > self.parking_distance+self.park_thres and turn_radius >= self.min_turn_radius:
-            # forward pure pursuit (intersection with straight line towards cone? maybe change to circle?)
-            # self.drive_cmd(np.arctan(lookahead*self.wheelbase/(2*self.relative_y))*gain)
+        if self.relative_x < 0:
+            self.get_logger().info('STOP')
+            self.stop_cmd()
 
-            self.drive_cmd(math.atan(self.wheelbase/turn_radius))
+        if lookahead > self.parking_distance+self.park_thres and abs(turn_radius) >= self.min_turn_radius:
+        # if lookahead > self.parking_distance:
+            # forward pure pursuit (intersection with straight line towards cone? maybe change to circle?)
+            # self.drive_cmd(gain*np.arctan(lookahead*self.wheelbase/(2*self.relative_y)))
+
+            steer_angle = math.atan(self.wheelbase/turn_radius)
+            self.drive_cmd(steer_angle, max(1.0-math.exp(-self.exp_speed_coeff*(lookahead-self.parking_distance)),self.close_speed))
+            self.get_logger().info('FORWARD, STEERING {steer_angle}')
                     
-        elif lookahead < self.parking_distance-self.park_thres or turn_radius < self.min_turn_radius:
+        elif lookahead < self.parking_distance-self.park_thres or abs(turn_radius) < self.min_turn_radius:
             # go back and turn
             if self.relative_y > 0:
                 # cone is to the left, go back right
                 self.drive_cmd(-self.max_steer, -1.0)
+                self.get_logger().info('FULL BACK RIGHT')
             else:
                 # cone right, go back left
                 self.drive_cmd(self.max_steer, -1.0)
+                self.get_logger().info('FULL BACK LEFT')
         else:
+            self.get_logger().info('STOP')
             self.stop_cmd()
         
         self.error_publisher()
