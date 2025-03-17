@@ -12,14 +12,14 @@ from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 from std_msgs.msg import Header
 from nav_msgs.msg import Odometry
 
-class ParkingController(Node):
+class LineFollower(Node):
     """
     A controller for parking in front of a cone.
     Listens for a relative cone location and publishes control commands.
     Can be used in the simulator and on the real robot.
     """
     def __init__(self):
-        super().__init__("parking_controller")
+        super().__init__("line_follower")
 
         self.declare_parameter("drive_topic")
         DRIVE_TOPIC = self.get_parameter("drive_topic").value # set in launch file; different for simulator vs racecar
@@ -31,7 +31,7 @@ class ParkingController(Node):
         self.create_subscription(ConeLocation, "/relative_cone", 
             self.relative_cone_callback, 1)
 
-        self.parking_distance = .5 # meters; try playing with this number!
+        self.parking_distance = .0 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
         self.positive_relative_x = 0
@@ -71,7 +71,7 @@ class ParkingController(Node):
             self.positive_relative_y = self.relative_y
         lookahead = np.linalg.norm([self.relative_x, self.relative_y])
         angle = math.atan2(self.relative_y, self.relative_x)
-        # gain = 1.
+        gain = 0.6
         self.get_logger().info(f"lookahead {lookahead}")
 
         # plan is to follow a circular trajectory to go to the cone (which will be smooth)
@@ -81,8 +81,8 @@ class ParkingController(Node):
 
         turn_radius = lookahead / (2*math.sin(math.atan2(self.relative_y,self.relative_x)))
 
-        if lookahead > self.safe_distance_function(self.odom_speed, self.parking_distance)+self.park_thres and abs(turn_radius) >= self.min_turn_radius and self.relative_x > 0:
-        # if lookahead > self.parking_distance+self.park_thres and abs(turn_radius) >= self.min_turn_radius and self.relative_x > 0:
+        # if lookahead > self.safe_distance_function(self.odom_speed, self.parking_distance)+self.park_thres and abs(turn_radius) >= self.min_turn_radius and self.relative_x > 0:
+        if lookahead > self.parking_distance+self.park_thres and abs(turn_radius) >= self.min_turn_radius and self.relative_x:
         # if lookahead > self.parking_distance:
             # forward pure pursuit (intersection with straight line towards cone? maybe change to circle?)
             # self.drive_cmd(gain*np.arctan(lookahead*self.wheelbase/(2*self.relative_y)))
@@ -90,7 +90,7 @@ class ParkingController(Node):
             steer_angle = math.atan(self.wheelbase/turn_radius)
             # self.cmd_speed = max(1.0-math.exp(-self.exp_speed_coeff*(lookahead-self.parking_distance)),self.close_speed)
             self.cmd_speed = 1.0
-            self.drive_cmd(steer_angle, self.cmd_speed)
+            self.drive_cmd(gain*steer_angle, self.cmd_speed)
             self.get_logger().info('FORWARD, STEERING {steer_angle}')
                     
         elif lookahead < self.parking_distance-self.park_thres or abs(turn_radius) < self.min_turn_radius or abs(angle) > self.angle_thres or self.relative_x < 0:
@@ -149,7 +149,7 @@ class ParkingController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    pc = ParkingController()
+    pc = LineFollower()
     rclpy.spin(pc)
     rclpy.shutdown()
 
